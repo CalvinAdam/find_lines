@@ -1,10 +1,11 @@
 import cv2
 import numpy as np
+import gzip
 
 
-def find_lines(img, img_name):
+def find_lines(img, img_name, og_img):
     (_, img_bin) = cv2.threshold(img, 128, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    img_bin = 255 - img
+    img_bin = 255 - img_bin
     img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
     rho = 1  # distance resolution in pixels of the Hough grid
@@ -16,16 +17,21 @@ def find_lines(img, img_name):
 
     # Making a horizontal and vertical kernel
     kernel_length = np.array(img).shape[1] // 120
+    small_kernel_length = kernel_length // 4
 
     # Vertical kernel
     vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, kernel_length))
+    small_vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, small_kernel_length))
 
     # Horizontal kernel
     horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_length, 1))
+    small_horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (small_kernel_length, 1))
 
-    # This filters out everything that isn't a straight line
-    vertical_lines_img = cv2.morphologyEx(img_bin, cv2.MORPH_OPEN, vertical_kernel, iterations=3)
-    horizontal_lines_img = cv2.morphologyEx(img_bin, cv2.MORPH_OPEN, horizontal_kernel, iterations=3)
+# This filters out everything that isn't a straight line
+    vertical_lines_img = cv2.morphologyEx(img_bin, cv2.MORPH_CLOSE, small_vertical_kernel, iterations=3)
+    vertical_lines_img = cv2.morphologyEx(vertical_lines_img, cv2.MORPH_OPEN, vertical_kernel, iterations=3)
+    horizontal_lines_img = cv2.morphologyEx(img_bin, cv2.MORPH_CLOSE, small_horizontal_kernel, iterations=3)
+    horizontal_lines_img = cv2.morphologyEx(horizontal_lines_img, cv2.MORPH_OPEN, horizontal_kernel, iterations=3)
 
     vertical_lines = cv2.HoughLinesP(vertical_lines_img, rho, theta, threshold, np.array([]),
                                      min_line_length, max_line_gap)
@@ -45,9 +51,10 @@ def find_lines(img, img_name):
             cv2.line(line_image, (x1, y1), (x2, y2), (0, 128, 0), 4)
 
     # Combines the original image with the line image and writes it to a file
-    lines_edges = cv2.addWeighted(img, 0.8, line_image, 1, 0)
+    lines_edges = cv2.addWeighted(og_img, 0.8, line_image, 1, 0)
     cv2.imwrite(f"documents_lines/{img_name}-with-lines.jpg", lines_edges)
 
 
 if __name__ == '__main__':
-    find_lines(cv2.imread('documents/00000035.TIF', cv2.IMREAD_GRAYSCALE), "00000035.TIF")
+    find_lines(cv2.imread('preprocessed_documents/image006.tif', cv2.IMREAD_GRAYSCALE),
+               "image006.tif", cv2.imread('documents/image006.tif'))
